@@ -1,0 +1,68 @@
+test_that("Qcoxph: the Jacobian, convergence and agreement with a Weibull Q-estimator", {
+  dd <- sim_cox()
+  m <- Qcoxph(Surv(y, d) ~ x + x2, data = dd)
+  expect_true(m$converged)
+  expect_lt(max(abs(m$internal$ee)), 1e-6)
+  ns <- asNamespace("Qest")
+  th <- c(m$coefficients, m$internal$gamma)
+  X <- as.matrix(dd[, c("x", "x2")])
+  ee <- function(t, J = FALSE) ns$QCox.ee.c(t, 0, m$internal$z, dd$y, dd$d, X, rep(1, 200), m$internal$knots,
+                                            m$internal$tau, J = J)
+  Jn <- sapply(seq_along(th), function(j) { e <- replace(0 * th, j, 1e-6); (ee(th + e)$g - ee(th - e)$g) / 2e-6 })
+  expect_lt(max(abs(t(ee(th, TRUE)$J) - Jn)) / max(abs(Jn)), 1e-5)
+  # a Weibull PH model is a special case: estimates are similar
+  QW <- function(theta, tau, data) {
+    sh <- exp(theta[1])
+    qweibull(tau, shape = sh, scale = exp(-(theta[2] + theta[3] * data$x + theta[4] * data$x2) / sh))
+  }
+  mw <- Qest(Surv(y, d) ~ x + x2, Q = QW, start = c(log(2), 2, 2, -1), data = dd)
+  expect_lt(max(abs(coef(m) - coef(mw)[3:4]) / sqrt(diag(m$var))), 1)
+})
+
+test_that("Qcoxph with left truncation", {
+  dd <- sim_cox()
+  set.seed(1)
+  dd$z <- runif(200, 0, 0.1)
+  dd <- dd[dd$y > dd$z, ]
+  m <- Qcoxph(Surv(z, y, d) ~ x + x2, data = dd)
+  expect_true(m$converged)
+  expect_equal(m$internal$type, "ct")
+  expect_lt(max(abs(coef(m) - c(2, -1)) / sqrt(diag(m$var))), 4)
+})
+
+test_that("Qcoxph methods are consistent", {
+  dd <- sim_cox()
+  m <- Qcoxph(Surv(y, d) ~ x + x2, data = dd)
+  expect_output(print(m), "exp\\(coef\\)")
+  expect_output(print(summary(m)), "Concordance")
+  nd <- data.frame(x = c(0.5, 1), x2 = 0:1)
+  q <- predict(m, nd, type = "quantile", p = c(0.25, 0.5))
+  s <- predict(m, cbind(nd, y = q[, 2], d = 1), type = "survival")
+  expect_equal(unname(s), c(0.5, 0.5), tolerance = 1e-8)
+  lp <- predict(m, nd, type = "lp", se.fit = TRUE)
+  expect_equal(unname(predict(m, nd, type = "risk")), unname(exp(lp$fit)))
+  bh <- basehaz.Qcoxph(m, centered = FALSE, se.fit = TRUE)
+  expect_true(all(diff(bh$hazard) >= 0))
+  sf <- survfit(m, newdata = nd)
+  expect_s3_class(sf, "survfit")
+  expect_equal(dim(sf$surv), c(length(unique(dd$y)), 2L))
+  H <- predict(m, type = "expected")
+  expect_equal(unname(residuals(m)), unname(dd$d - H), tolerance = 1e-8)
+  expect_length(residuals(m, "deviance"), 200)
+  ci <- confint(m)
+  expect_true(all(ci[, 1] < coef(m) & ci[, 2] > coef(m)))
+})
+
+test_that("Qcoxph: knots, wtau and errors", {
+  dd <- sim_cox()
+  m0 <- Qcoxph(Surv(y, d) ~ x, data = dd, knots = 0)
+  expect_length(m0$internal$gamma, 1)
+  m5 <- Qcoxph(Surv(y, d) ~ x, data = dd, knots = 5)
+  expect_length(m5$internal$knots, 7)
+  mk <- Qcoxph(Surv(y, d) ~ x, data = dd, knots = c(0, 0.1, 0.3, 1))
+  expect_equal(mk$internal$knots, c(0, 0.1, 0.3, 1))
+  mw <- Qcoxph(Surv(y, d) ~ x, data = dd, wtau = wtrunc, delta.left = 0, delta.right = 0.1)
+  expect_true(mw$converged)
+  expect_error(Qcoxph(y ~ x, data = dd), "Surv")
+  expect_error(Qcoxph(Surv(y, d) ~ x, data = dd, knots = c(0.1, 0.5)), "between")
+})

@@ -1,0 +1,37 @@
+Package: Qest
+Type: Package
+Title: Quantile-Based Estimators
+Version: 2.0.0
+Authors@R: c(
+    person("Gianluca", "Sottile", email = "gianluca.sottile@unipa.it",
+           role = c("aut", "cre"), comment = c(ORCID = "0000-0001-9347-7251")),
+    person("Paolo", "Frumento", email = "paolo.frumento@unipi.it", role = "aut"))
+Description: Quantile-based estimators (Q-estimators) fit any parametric
+    distribution through its quantile function, by minimizing the integrated
+    loss of quantile regression. They are usually more robust than maximum
+    likelihood estimators, and allow for censored and truncated data. The
+    package implements user-defined quantile functions, built-in families
+    (normal, gamma, continuous Poisson, uniform), linear models and
+    proportional hazards models. The method is described in Sottile and
+    Frumento (2022) <doi:10.1016/j.csda.2022.107471>.
+License: GPL (>= 2)
+URL: https://github.com/gianluca-sottile/Qest
+BugReports: https://github.com/gianluca-sottile/Qest/issues
+Depends:
+    R (>= 4.1.0)
+Imports:
+    graphics,
+    matrixStats,
+    stats,
+    survival,
+    utils
+Suggests:
+    knitr,
+    rmarkdown,
+    testthat (>= 3.0.0)
+VignetteBuilder: knitr
+Config/testthat/edition: 3
+Encoding: UTF-8
+Language: en-US
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.3
