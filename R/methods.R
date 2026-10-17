@@ -149,17 +149,22 @@ predict.Qest <- function(object, newdata, type = c("quantile", "CDF"), p = c(0.1
   # families
   famname <- fam$family$family
   tt <- stats::delete.response(object$terms)
-  if (is.null(newdata)) X <- object$internal$x
+  if (is.null(newdata)) { X <- object$internal$x; off <- object$internal$offset }
   else {
     mf <- stats::model.frame(tt, newdata, na.action = stats::na.pass, xlev = object$xlevels)
-    X <- stats::model.matrix(tt, mf)
+    X <- stats::model.matrix(tt, mf, contrasts.arg = object$contrasts)
+    off <- stats::model.offset(mf)
+    if (famname == "poisson" && !is.null(fam$offset))
+      stop("with newdata, the offset must be given as an offset() term in the formula, not in Qpois(offset = )",
+           call. = FALSE)
   }
+  if (is.null(off)) off <- 0
   th <- object$coefficients; th[is.na(th)] <- 0
   q <- ncol(X)
   pars <- switch(famname,
                  gaussian = list(sigma = exp(th[1]), mu = c(X %*% th[-1])),
                  Gamma = list(shape = exp(th[1]), scale = exp(c(X %*% th[-1]))),
-                 poisson = list(lambda = exp(c(X %*% th) + (if (!is.null(fam$offset)) fam$offset else 0))),
+                 poisson = list(lambda = exp(c(X %*% th) + off)),
                  uniform = list(a = if (fam$min) c(X %*% th[1:q]) else rep(0, nrow(X)),
                                 b = c(X %*% th[(q * fam$min + 1):(q * fam$min + q)])))
   if (type == "quantile") {

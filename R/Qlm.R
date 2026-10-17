@@ -6,7 +6,9 @@
 #' Hessian have closed forms (Appendix D1 of the paper), and the estimator is
 #' fast and robust to outliers in the response.
 #'
-#' @param formula,data,subset,weights,na.action,contrasts as in [stats::lm()].
+#' @param formula,data,subset,na.action,contrasts as in [stats::lm()].
+#' @param weights an optional vector of non-negative (sampling) weights; the
+#'   standard errors do not depend on their scale.
 #' @param start optional starting values for the regression coefficients
 #'   (excluding \eqn{\sigma}).
 #' @param wtau an optional weighting function \eqn{w(\tau)}, e.g. [wtrunc()].

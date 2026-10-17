@@ -36,6 +36,7 @@ qgrid <- function(Q, theta, TAU, data) {
   K <- ncol(q)
   dq <- q[, -1, drop = FALSE] - q[, -K, drop = FALSE]
   if (any(dq < -1e-8 * pmax(1, abs(q[, -1, drop = FALSE])))) return(NULL)
+  if (any(q[, K] - q[, 1] <= 0)) return(NULL)   # degenerate distribution
   q
 }
 

@@ -158,7 +158,7 @@ qest_family_fit <- function(Qf, z, y, d, x, w, type, start, ntau, wtau, wtauopti
 
   list(theta = th, se = se2, covar = covar, loss = loss, ee = ee, jacobian = J,
        CDF = Fy$Fy, PDF = G$fy, converged = fit$converged, n.it = fit$n.it, Q = Q1, tau = tau,
-       family = Qf)
+       family = Qf, offset = offset)
 }
 
 # Loss of the families, computed on the grid tau.

@@ -8,7 +8,7 @@
 #' @param formula a formula with a `survival::Surv()` response: `Surv(time, event)`
 #'   for right-censored data, or `Surv(start, stop, event)` for left-truncated
 #'   and right-censored data. Times must be positive.
-#' @param weights an optional vector of weights.
+#' @param weights an optional vector of non-negative (sampling) weights.
 #' @param start optional starting values for the regression coefficients
 #'   \eqn{\beta}.
 #' @param data an optional data frame.
@@ -123,10 +123,13 @@ Qcoxph <- function(formula, weights, start, data, subset, na.action, knots, wtau
   ev <- y[d == 1]
   if (missing(knots) || is.null(knots)) {
     k <- max(1, min(floor(sum(d) / 30), 3))
-    knots <- c(ry[1] - 1e-6, stats::quantile(ev, (1:k) / (k + 1), names = FALSE), ry[2] + 1e-6)
+    knots <- unique(c(ry[1] - 1e-6 * diff(ry), stats::quantile(ev, (1:k) / (k + 1), names = FALSE),
+                      ry[2] + 1e-6 * diff(ry)))
   } else if (length(knots) == 1) {
     if (knots < 0 || knots != round(knots)) stop("'knots' must be a non-negative integer or a vector", call. = FALSE)
-    knots <- c(ry[1] - 1e-6, if (knots > 0) stats::quantile(ev, (1:knots) / (knots + 1), names = FALSE), ry[2] + 1e-6)
+    knots <- unique(c(ry[1] - 1e-6 * diff(ry),
+                      if (knots > 0) stats::quantile(ev, (1:knots) / (knots + 1), names = FALSE),
+                      ry[2] + 1e-6 * diff(ry)))
   } else {
     knots <- sort(unique(knots))
     if (any(!is.finite(knots))) stop("all knots must be finite", call. = FALSE)
@@ -203,7 +206,7 @@ Qcoxph <- function(formula, weights, start, data, subset, na.action, knots, wtau
   out <- list(coefficients = beta, var = var, obj.function = L, iter = fit$n.it, converged = fit$converged,
               linear.predictors = lp, residuals = resid, means = means, n = n, nevent = sum(d),
               terms = Terms, assign = cox_assign(attr(X, "assign"), Terms), concordance = conc,
-              model = mf, x = X0, y = Y, formula = formula, call = cl, xlevels = stats::.getXlevels(Terms, mf),
+              model = mf, x = X0, y = Y, contrasts = attr(X, "contrasts"), formula = formula, call = cl, xlevels = stats::.getXlevels(Terms, mf),
               na.action = na.act, internal = internal)
   class(out) <- c("Qcoxph", "Qest")
   if (!fit$converged) warning("the algorithm did not converge", call. = FALSE)

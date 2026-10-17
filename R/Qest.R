@@ -14,7 +14,8 @@
 #'   covariates are used by `Q`.
 #' @param Q a quantile function `Q(theta, tau, data)` (see "Details"), or a
 #'   [Qfamily] (`Qnorm`, `Qgamma`, `Qpois`, `Qunif`).
-#' @param weights an optional vector of (non-negative) weights.
+#' @param weights an optional vector of non-negative weights. They are treated as
+#'   sampling weights: the (sandwich) standard errors do not depend on their scale.
 #' @param start the starting points. With a user-defined `Q`, `start` is
 #'   required, because its length defines the number of parameters: use `NA`
 #'   for the parameters without a good starting value (with any `NA`, the
@@ -46,7 +47,7 @@
 #' or a vector with one value for each row of `data` (then `Q` returns a
 #' vector). `data` is the data frame used to fit the model (after removing
 #' missing values, `subset` and observations with zero weight). `Q` must be
-#' increasing in `tau`; it is evaluated on a grid of `ntau` quantile orders in
+#' increasing in `tau` and twice differentiable in `theta`; it is evaluated on a grid of `ntau` quantile orders in
 #' \eqn{[5 \cdot 10^{-4}, 1 - 5 \cdot 10^{-4}]}, and its derivatives with respect
 #' to `theta` are computed by central differences.
 #'
@@ -54,7 +55,9 @@
 #' a nonparametric estimate \eqn{\hat F(y \mid x)} is obtained from a
 #' piecewise-constant hazard model that uses the covariates in `formula`, and the
 #' starting points minimize \eqn{\sum_i (y_i - Q(\hat F(y_i \mid x_i) \mid x_i, \theta))^2}
-#' (Sottile and Frumento, 2022, Algorithm 1).
+#' (Sottile and Frumento, 2022, Algorithm 1), searched from the values in `start`
+#' (with `NA` replaced by zero): with poorly scaled data, rough starting values for
+#' all parameters are recommended.
 #'
 #' **Algorithm.** The estimating equations are solved by Newton-Raphson with
 #' backtracking, switching to Levenberg-Marquardt steps when the Newton step
@@ -176,7 +179,7 @@ Qest <- function(formula, Q, weights, start, data, subset, na.action, ntau = 199
               CDF = CDF, PDF = PDF, converged = fit$converged, n.it = fit$n.it,
               internal = list(z = z, y = y, d = d, w = w, Q = fit$Q, type = type, tau = fit$tau,
                               family = fit$family, Qoptions = dots$Q, ntau = ntau, wtau = wtau,
-                              wtauoptions = dots$wtau, x = x),
+                              wtauoptions = dots$wtau, x = x, offset = fit$offset),
               formula = formula, terms = mt, data = Qdata, control = control,
               na.action = attr(mf0, "na.action"), xlevels = stats::.getXlevels(mt, mf),
               contrasts = attr(x, "contrasts"), call = cl)
@@ -257,7 +260,8 @@ get_response <- function(y) {
     out <- list(z = y[, 1], y = y[, 2], d = y[, 3])
     if (any(out$z >= out$y)) stop("the truncation time must be smaller than the observed time", call. = FALSE)
     out$type <- "ct"
-    if (all(out$z < min(out$y))) {   # truncation is irrelevant
+    # (truncation matters even if all z < min(y), because F(z | x) > 0 in general)
+    if (all(!is.finite(out$z))) {
       out$type <- if (any(out$d == 0)) "c" else "u"
       out$z <- rep.int(-Inf, n)
     }
@@ -304,6 +308,23 @@ qest_generic_fit <- function(Q, Qoptions, data, z, y, d, x, w, type, start, ntau
   fit <- qest_solve(theta0, eefun, n, control)
   G <- fit$G
   theta <- fit$theta
+  # The analytical Jacobian assumes that Q is twice differentiable in theta: compare
+  # it with finite differences of the estimating equations.
+  hJ <- 1e-3 * pmax(abs(theta), 1)
+  gp <- lapply(seq_len(npar), function(j) {
+    e <- replace(numeric(npar), j, hJ[j])
+    a <- eefun(theta + e, FALSE); b <- eefun(theta - e, FALSE)
+    if (is.null(a) || is.null(b)) NULL else (a$g - b$g) / (2 * hJ[j])
+  })
+  if (!any(vapply(gp, is.null, TRUE))) {
+    Jfd <- do.call(cbind, gp)
+    if (max(abs(G$J - Jfd)) > 0.05 * max(abs(Jfd))) {
+      warning("the Jacobian computed from the derivatives of Q differs from a numerical Jacobian: ",
+              "is Q twice differentiable with respect to theta? The numerical Jacobian is used ",
+              "to compute the standard errors", call. = FALSE)
+      G$J <- Jfd
+    }
+  }
   nms <- names(start)
   if (is.null(nms) || any(nms == "")) nms <- paste0("Theta", seq_len(npar))
   covar <- tryCatch(sandwich(G$J, G$g.i, w), error = function(e) NULL)

@@ -92,7 +92,7 @@ cox_newx <- function(object, newdata) {
   if (missing(newdata) || is.null(newdata)) return(object$x)
   tt <- stats::delete.response(object$terms)
   mf <- stats::model.frame(tt, newdata, na.action = stats::na.pass, xlev = object$xlevels)
-  X <- stats::model.matrix(tt, mf)
+  X <- stats::model.matrix(tt, mf, contrasts.arg = object$contrasts)
   X[, colnames(object$x), drop = FALSE]
 }
 
@@ -301,7 +301,8 @@ survfit.Qcoxph <- function(formula, newdata, se.fit = TRUE, conf.int = 0.95,
     s <- seH / pmax(H, 1e-300)
     lower <- exp(-H * exp(z * s)); upper <- exp(-H * exp(-z * s))
   } else if (conf.type == "plain") { lower <- pmax(S - z * S * seH, 0); upper <- pmin(S + z * S * seH, 1) }
-  nrisk <- vapply(times, function(t) sum(w[y >= t]), 1)
+  z <- object$internal$z
+  nrisk <- vapply(times, function(t) sum(w[y >= t & z < t]), 1)
   nevent <- vapply(times, function(t) sum(w[y == t & d == 1]), 1)
   ncens <- vapply(times, function(t) sum(w[y == t & d == 0]), 1)
   out <- list(n = object$n, time = times, n.risk = nrisk, n.event = nevent, n.censor = ncens,

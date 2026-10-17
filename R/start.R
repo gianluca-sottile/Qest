@@ -58,7 +58,10 @@ pch_cdf <- function(z, y, d, x, w, nbreaks = NULL) {
   }
   if (is.null(haz) && p > 0) haz <- fitp(cbind(I, X))
   if (is.null(haz)) haz <- fitp(I)
-  if (is.null(haz)) return(stats::ecdf(y)(y) * n / (n + 1))
+  if (is.null(haz)) {   # Kaplan-Meier (with left truncation)
+    km <- km_unif(y, d, w, if (any(is.finite(z))) z else NULL)
+    return(pmin(stats::approx(km$u[-1], km$F[-1], xout = y, method = "constant", rule = 2, f = 0)$y, 1 - 1e-3))
+  }
   # cumulative hazard from -Inf (or from the first observation) to y
   lo0 <- pmax(rep(br[-(k + 1)], each = n), ref)
   e0 <- pmax(hi - lo0, 0)

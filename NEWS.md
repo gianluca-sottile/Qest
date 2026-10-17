@@ -68,6 +68,14 @@ and the API was cleaned.
 * S3 methods are registered but no longer exported: use the generics (`summary(fit)`
   instead of `summary.Qest(fit)`).
 * `Qest(..., Q = Qnorm)` no longer warns that `Qlm()` could be used.
+* Weights are treated as sampling weights in the sandwich formula (the middle term
+  is now the sum of w^2 g g', so that the standard errors do not depend on the scale
+  of the weights).
+* With left-truncated data, truncation is no longer ignored when all truncation
+  times are smaller than the smallest observed time (in 1.0.2 this biased the
+  estimates, e.g., with a common truncation point).
+* `Qest()` with a user-defined `Q` warns, and uses a numerical Jacobian for the
+  standard errors, if `Q` does not seem twice differentiable in `theta`.
 
 ## Dependencies
 

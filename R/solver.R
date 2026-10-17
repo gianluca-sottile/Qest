@@ -26,7 +26,7 @@ qest_solve <- function(theta, eefun, n, control, what = "", max.step = 1) {
     if (nm < tol) { conv <- TRUE; break }
     it <- it + 1
     g <- G$g / n; Jm <- G$J / n
-    accepted <- FALSE
+    accepted <- newton <- FALSE
     # 1. Newton with backtracking
     # steps are shortened so that |delta_j| <= max.step * max(1, |theta_j|)
     cap <- function(s) { r <- max(abs(s) / (max.step * pmax(1, abs(theta)))); if (r > 1) s / r else s }
@@ -38,7 +38,7 @@ qest_solve <- function(theta, eefun, n, control, what = "", max.step = 1) {
         newt <- theta - alpha * step
         G1 <- eefun(newt, FALSE)
         nm1 <- nrm(G1)
-        if (nm1 < nm) { accepted <- TRUE; delta <- alpha * step; break }
+        if (nm1 < nm) { accepted <- newton <- TRUE; delta <- alpha * step; break }
         alpha <- alpha / 2
       }
     }
@@ -59,7 +59,8 @@ qest_solve <- function(theta, eefun, n, control, what = "", max.step = 1) {
       }
     } else lambda <- 0
     if (!accepted) break
-    small <- max(abs(delta) / (abs(theta) + 1)) < 1e-7
+    # a small step means convergence only if it is a Newton step (not a damped LM step)
+    small <- newton && max(abs(delta) / (abs(theta) + 1)) < 1e-7
     theta <- newt
     G <- eefun(theta, TRUE)
     if (is.null(G) || any(!is.finite(G$J))) stop("the Jacobian cannot be evaluated", call. = FALSE)
@@ -68,12 +69,20 @@ qest_solve <- function(theta, eefun, n, control, what = "", max.step = 1) {
     if (small) { conv <- TRUE; break }
   }
   if (nm < tol) conv <- TRUE
-  if (!conv && nm < sqrt(tol) * max(1, nm0)) conv <- TRUE   # no further progress at numerical precision
+  if (!conv) {
+    # no further progress: converged if the Newton step is negligible (a scale-free criterion)
+    ns <- tryCatch(qr.solve(G$J / n, G$g / n, tol = 1e-10), error = function(e) NULL)
+    if (!is.null(ns) && all(is.finite(ns)) && max(abs(ns) / (abs(theta) + 1)) < 1e-6) conv <- TRUE
+    # ... or if ||g|| cannot be decreased further and is much smaller than at the start
+    # (non-smooth estimating equations, e.g., with discontinuous weights w(tau))
+    if (it < maxit && nm < 1e-3 * nm0) conv <- TRUE
+  }
   list(theta = theta, G = G, converged = conv, n.it = it, norm = nm)
 }
 
-# Sandwich covariance matrix J^{-1} Omega J^{-T}, Omega = sum_i w_i g_i g_i'.
+# Sandwich covariance matrix J^{-1} Omega J^{-T}, Omega = sum_i w_i^2 g_i g_i'
+# (weights are treated as sampling weights: the result does not depend on their scale).
 sandwich <- function(J, g.i, w) {
   Ji <- solve(J)
-  Ji %*% crossprod(g.i * sqrt(w)) %*% t(Ji)
+  Ji %*% crossprod(g.i * w) %*% t(Ji)
 }

@@ -71,3 +71,34 @@ test_that("collinear covariates are dropped with a warning", {
   expect_warning(m <- Qest(y ~ x + x2, Qgamma, data = dd), "collinearity")
   expect_true(is.na(coef(m)["x2"]))
 })
+
+test_that("truncation is not ignored when all truncation times are below the observed times", {
+  set.seed(9)
+  y <- rnorm(5000, 1, 1); y <- y[y > 0][1:1000]
+  m <- Qest(Surv(rep(0, 1000), y, rep(1, 1000)) ~ 1, Qnorm)
+  expect_equal(m$internal$type, "ct")
+  expect_lt(max(abs(coef(m) - c(0, 1)) / m$std.errs), 4)
+})
+
+test_that("predictions with Poisson offsets", {
+  set.seed(2)
+  dd <- data.frame(x = runif(300), t = runif(300, 1, 3))
+  dd$y <- rpois(300, dd$t * exp(1 + dd$x)) + runif(300)
+  m1 <- Qest(y ~ x + offset(log(t)), Qpois, data = dd)
+  lam <- dd$t[1:3] * exp(coef(m1)[1] + coef(m1)[2] * dd$x[1:3])
+  p1 <- predict(m1, newdata = dd[1:3, ], p = 0.5)
+  p0 <- predict(m1, p = 0.5)[1:3, ]
+  expect_equal(unname(p1[, 1]), unname(p0))
+  expect_equal(unname(p0), asNamespace("Qest")$qpois_cont(0.5, lam), tolerance = 1e-6)
+  m2 <- Qest(y ~ x, Qpois(offset = log(dd$t)), data = dd)
+  expect_error(predict(m2, newdata = dd[1:3, ]), "offset")
+})
+
+test_that("standard errors do not depend on the scale of the weights", {
+  dd <- ref_cases()$gamma_user$data
+  w <- runif(nrow(dd), 0.5, 2)
+  m1 <- Qest(y ~ x, Qgamma, data = dd, weights = w)
+  m2 <- Qest(y ~ x, Qgamma, data = dd, weights = 10 * w)
+  expect_equal(coef(m1), coef(m2), tolerance = 1e-8)
+  expect_equal(m1$std.errs, m2$std.errs, tolerance = 1e-6)
+})
