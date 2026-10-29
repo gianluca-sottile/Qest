@@ -11,7 +11,7 @@
 
 \item{conf.int}{logical: add pointwise 95\% confidence bands (Greenwood)?}
 
-\item{...}{additional graphical parameters passed to \code{\link[graphics:plot.default]{graphics::plot()}}.}
+\item{...}{additional graphical parameters passed to \code{\link[graphics:plot]{graphics::plot()}}.}
 }
 \value{
 Invisibly, a data frame with the Kaplan-Meier estimate of the
